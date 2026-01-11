@@ -1,0 +1,52 @@
+name: Deploy Inference to EKS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # ── Login to AWS (using OIDC – most secure & recommended) ───────────────
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::YOUR_ACCOUNT_ID:role/github-actions-eks-deploy-role
+        aws-region: ap-south-1
+
+    # ── Login to ECR ────────────────────────────────────────────────────────
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    # ── Build & push Docker image ───────────────────────────────────────────
+    - name: Build, tag, and push image to ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: inference-yolov8n
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+    # ── Update kubeconfig for EKS ───────────────────────────────────────────
+    - name: Update kubeconfig
+      run: aws eks update-kubeconfig --name video-inference --region ap-south-1
+
+    # ── Deploy to EKS (update image tag) ────────────────────────────────────
+    - name: Deploy to EKS
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Replace image in deployment.yaml
+        sed -i "s|YOUR_IMAGE_PLACEHOLDER|$ECR_REGISTRY/inference-yolov8n:$IMAGE_TAG|g" inference-deployment.yaml
+        
+        kubectl apply -f inference-deployment.yaml
+        kubectl rollout status deployment/inference-yolov8n --timeout=300s

@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-yolov8n
+  namespace: default
+  labels:
+    app: inference
+spec:
+  replicas: 1                  # Start with 1 – scale later if needed
+  selector:
+    matchLabels:
+      app: inference
+  template:
+    metadata:
+      labels:
+        app: inference
+    spec:
+      containers:
+      - name: inference
+        image: 703176829610.dkr.ecr.ap-south-1.amazonaws.com/inference-yolov8n:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "1Gi"
+          limits:
+            cpu: "1500m"
+            memory: "2Gi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 45   # Give time for model load
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inference-service
+  namespace: default
+spec:
+  selector:
+    app: inference
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
