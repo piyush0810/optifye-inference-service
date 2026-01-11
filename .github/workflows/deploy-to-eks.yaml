@@ -50,7 +50,7 @@ jobs:
         IMAGE_TAG: ${{ github.sha }}
       run: |
         # Replace image in deployment.yaml
-        sed -i "s|YOUR_IMAGE_PLACEHOLDER|$ECR_REGISTRY/inference-yolov8n:$IMAGE_TAG|g" inference-deployment.yaml
+        sed -i "s|703176829610.dkr.ecr.ap-south-1.amazonaws.com/inference-yolov8n:latest|$ECR_REGISTRY/inference-yolov8n:$IMAGE_TAG|g" inference-deployment.yaml
         
         kubectl apply -f inference-deployment.yaml
         kubectl rollout status deployment/inference-yolov8n --timeout=300s
